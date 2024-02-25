@@ -1,6 +1,6 @@
 use std::{
     cell::RefCell,
-    // cmp::{max, min},
+    cmp::{max, min},
     collections::HashMap,
 };
 
@@ -48,11 +48,11 @@ impl InversionDistance {
             if tiles[i].get_value() == 0 {
                 continue;
             }
+            let order_i = order.get(&tiles[i].get_value()).unwrap();
             for j in (i + 1)..tiles.len() {
                 if tiles[j].get_value() == 0 {
                     continue;
                 }
-                let order_i = order.get(&tiles[i].get_value()).unwrap();
                 let order_j = order.get(&tiles[j].get_value()).unwrap();
                 if order_i > order_j {
                     count += 1;
@@ -64,118 +64,102 @@ impl InversionDistance {
 
     fn compute_order(&self, board: &Board, vertical: bool) -> HashMap<u8, u8> {
         let n = BoardManager::size_of(board);
-        let goal = BoardManager::goal_of(board);
+        let mut goal = BoardManager::goal_of(board).to_vec();
         let mut result = HashMap::new();
         if vertical {
-            let mut value: u8 = 1;
-            let mut curr: u8 = 0;
-            let len = n * n;
-            while result.len() != (len - 1) as usize {
-                result.insert(goal[curr as usize].get_value(), value);
-                value += 1;
-                curr += n;
-                if curr >= len {
-                    curr %= len - 1;
-                }
-            }
-        } else {
-            for i in 0..(n * n) {
-                result.insert(goal[i as usize].get_value(), i);
-            }
+            goal = self.transpose(&goal, n as usize);
+        }
+        for i in 0..(n * n) {
+            result.insert(goal[i as usize].get_value(), i);
         }
         result
     }
 }
 
 impl HeuristicFn for InversionDistance {
-    fn compute(&self, new_state: &Board, _old_state: Option<&Board>) -> usize {
-        // // Still bugs
-        // match old_state {
-        //     None => {
-        //         let horizontal = self.inversion_count(new_state, false);
-        //         let vertical = self.inversion_count(new_state, true);
+    fn compute(&self, new_state: &Board, old_state: Option<&Board>) -> usize {
+        // Still bugs
+        match old_state {
+            None => {
+                let horizontal = self.inversion_count(new_state, false);
+                let vertical = self.inversion_count(new_state, true);
 
-        //         let n = BoardManager::size_of(new_state) as usize;
+                let n = BoardManager::size_of(new_state) as usize;
 
-        //         let tiles = BoardManager::tiles_of(new_state).to_vec();
-        //         dbg!(&tiles);
-        //         self.cache
-        //             .borrow_mut()
-        //             .insert(tiles, (horizontal, vertical));
+                let tiles = BoardManager::tiles_of(new_state).to_vec();
 
-        //         let heuristic = (horizontal / (n - 1) + horizontal % (n - 1))
-        //             + (vertical / (n - 1) + vertical % (n - 1));
+                self.cache
+                    .borrow_mut()
+                    .insert(tiles, (horizontal, vertical));
 
-        //         heuristic
-        //     }
-        //     Some(old_state) => {
-        //         let mut old_idx = BoardManager::empty_tile_idx(old_state) as usize;
-        //         let tiles = BoardManager::tiles_of(old_state).to_vec();
-        //         dbg!(&tiles);
-        //         let mut new_idx = BoardManager::empty_tile_idx(new_state) as usize;
-        //         if let Some((horizontal, vertical)) = self.cache.borrow().get(&tiles) {
-        //             let mut tiles = BoardManager::tiles_of(new_state).to_vec();
-        //             let is_vertical = new_idx.abs_diff(old_idx) == 1;
-        //             let mut change: isize = 0;
-        //             if is_vertical {
-        //                 tiles = self.transpose(&tiles, BoardManager::size_of(new_state) as usize);
-        //             }
-        //             let order = self.compute_order(new_state, is_vertical);
-        //             if is_vertical {
-        //                 let n = BoardManager::size_of(new_state) as usize;
-        //                 old_idx = (old_idx % n) * n + old_idx / n;
-        //                 new_idx = (new_idx % n) * n + new_idx / n;
-        //             }
-        //             let start = min(old_idx, new_idx);
-        //             let end = max(old_idx, new_idx);
-        //             let swapped_tile_order = order.get(&tiles[old_idx].get_value()).unwrap();
-        //             for i in (start + 1)..end {
-        //                 if order.get(&tiles[i].get_value()).unwrap() < swapped_tile_order {
-        //                     change += 1;
-        //                 }
-        //             }
-        //             if end == old_idx {
-        //                 change *= -1;
-        //             }
+                let heuristic = (horizontal / (n - 1) + horizontal % (n - 1))
+                    + (vertical / (n - 1) + vertical % (n - 1));
 
-        //             let horizontal = if is_vertical {
-        //                 *horizontal as isize + change
-        //             } else {
-        //                 *horizontal as isize
-        //             } as usize;
+                heuristic
+            }
+            Some(old_state) => {
+                let mut old_idx = BoardManager::empty_tile_idx(old_state) as usize;
+                let mut new_idx = BoardManager::empty_tile_idx(new_state) as usize;
 
-        //             let vertical = if !is_vertical {
-        //                 *vertical as isize + change
-        //             } else {
-        //                 *vertical as isize
-        //             } as usize;
+                let old_tiles = BoardManager::tiles_of(old_state).to_vec();
+                let mut new_tiles = BoardManager::tiles_of(new_state).to_vec();
 
-        //             let n = BoardManager::size_of(new_state) as usize;
+                let (horizontal, vertical) = *self.cache.borrow().get(&old_tiles).unwrap();
 
-        //             let heuristic = (horizontal / (n - 1) + horizontal % (n - 1))
-        //                 + (vertical / (n - 1) + vertical % (n - 1));
+                // horizontal swaps affect the vertical inversion counts
+                // and vice versa
+                let is_vertical = new_idx.abs_diff(old_idx) == 1;
 
-        //             return heuristic;
-        //         }
+                let mut change: isize = 0;
+                let order = self.compute_order(new_state, is_vertical);
 
-        //         panic!("")
-        //     }
-        // }
+                if is_vertical {
+                    new_tiles =
+                        self.transpose(&new_tiles, BoardManager::size_of(new_state) as usize);
+                    let n = BoardManager::size_of(new_state) as usize;
+                    old_idx = (old_idx % n) * n + old_idx / n;
+                    new_idx = (new_idx % n) * n + new_idx / n;
+                }
 
-        let horizontal = self.inversion_count(new_state, false);
-        let vertical = self.inversion_count(new_state, true);
+                let start = min(old_idx, new_idx);
+                let end = max(old_idx, new_idx);
 
-        let n = BoardManager::size_of(new_state) as usize;
+                let swapped_tile_order = order.get(&new_tiles[old_idx].get_value()).unwrap();
+                for i in (start + 1)..end {
+                    if order.get(&new_tiles[i].get_value()).unwrap() < swapped_tile_order {
+                        change += 1;
+                    }
+                }
 
-        let tiles = BoardManager::tiles_of(new_state).to_vec();
+                if end == old_idx {
+                    change *= -1;
+                }
 
-        self.cache
-            .borrow_mut()
-            .insert(tiles, (horizontal, vertical));
+                let horizontal = if !is_vertical {
+                    horizontal as isize + change
+                } else {
+                    horizontal as isize
+                } as usize;
 
-        let heuristic = (horizontal / (n - 1) + horizontal % (n - 1))
-            + (vertical / (n - 1) + vertical % (n - 1));
+                let vertical = if is_vertical {
+                    vertical as isize + change
+                } else {
+                    vertical as isize
+                } as usize;
 
-        heuristic
+                let n = BoardManager::size_of(new_state) as usize;
+
+                let heuristic = (horizontal / (n - 1) + horizontal % (n - 1))
+                    + (vertical / (n - 1) + vertical % (n - 1));
+
+                let new_tiles = BoardManager::tiles_of(new_state).to_vec();
+
+                self.cache
+                    .borrow_mut()
+                    .insert(new_tiles, (horizontal, vertical));
+
+                heuristic
+            }
+        }
     }
 }

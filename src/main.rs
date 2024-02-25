@@ -1,7 +1,7 @@
 use n_puzzle_trial::{inversion_distance::InversionDistance, start_up::run, AStarAlgorithms};
 
 fn main() {
-    let n = 4;
+    let n = 3;
 
     let mut goal_state: Vec<u8> = (1..(n * n)).collect();
 

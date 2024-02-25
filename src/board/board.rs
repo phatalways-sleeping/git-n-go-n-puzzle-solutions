@@ -135,7 +135,7 @@ impl BoardManager {
     pub fn tiles_of(board: &Board) -> &[Tile] {
         &board.tiles
     }
-    
+
     pub fn goal_of(board: &Board) -> &[Tile] {
         board.config.goal_state()
     }
@@ -190,7 +190,13 @@ impl BoardManager {
         neighbors.shrink_to_fit();
         neighbors
             .into_iter()
-            .map(|idx| Self::swap_empty_tile_with(idx, board))
+            .map(|idx| {
+                let mut neighbor = Self::swap_empty_tile_with(idx, board);
+                if let Some(depth) = neighbor.config.get_mut_depth() {
+                    *depth += 1;
+                }
+                neighbor
+            })
             .collect()
     }
 
@@ -199,9 +205,6 @@ impl BoardManager {
         tiles.swap(board.config.empty_tile_idx() as usize, idx);
         let mut config = board.config.clone();
         config.set_empty_tile_idx(idx as u8);
-        if let Some(depth) = config.get_mut_depth() {
-            *depth += 1;
-        }
         Board { tiles, config }
     }
 
@@ -251,7 +254,7 @@ impl BoardManager {
     }
 
     fn move_right(idx: usize, n: usize) -> Option<usize> {
-        if idx % (n - 1) == 0 {
+        if idx % n == n - 1 {
             return None;
         }
         Some(idx + 1)
